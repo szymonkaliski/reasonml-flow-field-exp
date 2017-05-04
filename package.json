@@ -9,5 +9,8 @@
     "bs-platform": "^1.7.3",
     "budo": "^10.0.3",
     "concurrently": "^3.4.0"
+  },
+  "dependencies": {
+    "simplex-noise": "^2.3.0"
   }
 }

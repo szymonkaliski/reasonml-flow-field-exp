@@ -1941,6 +1941,10 @@ simple-html-index@^1.4.0:
   dependencies:
     from2-string "^1.1.0"
 
+simplex-noise@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/simplex-noise/-/simplex-noise-2.3.0.tgz#317e0db8f10ef34d058c6619e7b67657de131d26"
+
 sntp@1.x.x:
   version "1.0.9"
   resolved "https://registry.yarnpkg.com/sntp/-/sntp-1.0.9.tgz#6541184cc90aeea6c6e7b35e2659082443c66198"
