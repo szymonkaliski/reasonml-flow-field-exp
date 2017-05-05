@@ -1,8 +1,13 @@
 type simplex;
 external newSimplex : unit => simplex = "simplex-noise" [@@bs.module] [@@bs.new];
 external noise2D : simplex => float => float => float = "noise2D" [@@bs.send];
+external noise3D : simplex => float => float => float => float = "noise3D" [@@bs.send];
 
 let simplex = newSimplex ();
+
+let module Math = {
+  let pi = [%bs.raw "Math.PI"];
+};
 
 /* main app state */
 
@@ -11,18 +16,23 @@ type windowT = {
   mutable height: int
 };
 
-type pointT = {
+type vecT = {
   mutable x: float,
   mutable y: float
 };
 
+type pointT = {
+  pos: vecT,
+  vel: vecT
+};
+
 type stateT = {
-  mutable points: list pointT,
+  mutable points: array pointT,
   window: windowT,
 };
 
 let state : stateT = {
-  points: [],
+  points: [| |],
   window: {
     width: 0,
     height: 0
@@ -77,67 +87,81 @@ Document.addEventListener canvas "mouseup" (fun _ => {
 
 /* app code */
 
-/* TODO: for-loop, this blows up stack */
 let genItems num callback => {
-  let rec buildItems num callback items => {
-    if (num > 0) {
-      let newItem = callback (num);
+  let emptyArray = Array.make num 0;
 
-      buildItems (num - 1) callback (items @ [newItem]);
-    } else {
-      items;
-    }
-  };
-
-  buildItems num callback [];
+  Array.map (fun i => {
+    callback i;
+  }) emptyArray;
 };
 
-state.points = genItems 2000 (fun _ => {
+state.points = genItems 5000 (fun _ => {
   {
-    x: Random.float 1.,
-    y: Random.float 1.
-  }
+    pos: {
+      x: Random.float 1.,
+      y: Random.float 1.
+    },
+    vel: {
+      x: 0.,
+      y: 0.
+    }
+  };
 });
 
 let drawCircle (ctx, x, y, r) => {
-  let pi = [%bs.raw "Math.PI"];
-
-  Canvas.arc ctx x y r 0. (2. *. pi) false;
+  Canvas.arc ctx x y r 0. (2. *. Math.pi) false;
 };
 
 let draw state => {
   let width = float_of_int state.window.width;
   let height = float_of_int state.window.height;
 
-  Canvas.clearRect ctx 0. 0. width height;
+  Canvas.fillStyle ctx "rgba(255, 255, 255, 0.001)";
+  Canvas.fillRect ctx 0. 0. width height;
 
-  let r = 2.;
+  let r = 1.;
 
-  Canvas.strokeStyle ctx "rgba(200, 120, 100)";
+  Canvas.fillStyle ctx "rgba(20, 120, 200, 0.20)";
 
-  List.iter (fun point => {
+  Array.iter (fun point => {
     Canvas.beginPath ctx;
 
-    let x = point.x *. width;
-    let y = point.y *. height;
+    let x = point.pos.x *. width;
+    let y = point.pos.y *. height;
 
     drawCircle (ctx, x, y, r);
 
-    Canvas.stroke ctx;
+    Canvas.fill ctx;
   }) state.points;
 };
 
-let modx = 1.;
-let mody = 1.;
+let angleToVec angle :vecT => {
+  x: (sin (angle *. 2. *. Math.pi)),
+  y: (cos (angle *. 2. *. Math.pi))
+};
 
-let update events state => {
-  state.points = List.mapi (fun i point => {
-    let noise = noise2D simplex (point.x *. modx) (point.y *. mody *. ((float_of_int i) /. 1000.));
+let modPos = 3.0;
+let modIdx = 0.2;
+let modVel = 0.2;
+let modDir = 0.2;
 
-    let point = {
-      x: point.x +. ((sin noise) *. 0.01) *. 0.05,
-      y: point.y +. ((cos noise) *. 0.01) *. 0.05
-    };
+let update _ state => {
+  state.points = Array.mapi (fun i point => {
+    let nx = point.pos.x *. modPos;
+    let ny = point.pos.y *. modPos;
+    let nz = ((float_of_int i) /. (float_of_int (Array.length state.points))) *. modIdx;
+
+    let noise = noise3D simplex nx ny nz;
+    let direction = angleToVec noise;
+
+    point.vel.x = point.vel.x +. direction.x *. modDir;
+    point.vel.y = point.vel.y +. direction.y *. modDir;
+
+    point.vel.x = point.vel.x *. modVel;
+    point.vel.y = point.vel.y *. modVel;
+
+    point.pos.x = point.pos.x +. point.vel.x;
+    point.pos.y = point.pos.y +. point.vel.y;
 
     point;
   }) state.points;
