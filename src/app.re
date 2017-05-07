@@ -1,3 +1,5 @@
+/* 2017-05-07: Flow Field with Simplex noise */
+
 type simplex;
 external newSimplex : unit => simplex = "simplex-noise" [@@bs.module] [@@bs.new];
 external noise2D : simplex => float => float => float = "noise2D" [@@bs.send];
