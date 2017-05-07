@@ -23,7 +23,9 @@ type vecT = {
 
 type pointT = {
   pos: vecT,
-  vel: vecT
+  vel: vecT,
+  size: float,
+  locked: bool,
 };
 
 type stateT = {
@@ -37,6 +39,16 @@ let state : stateT = {
     width: 0,
     height: 0
   }
+};
+
+type constsT = {
+  minSize: float,
+  maxSize: float
+};
+
+let consts: constsT = {
+  minSize: 2.,
+  maxSize: 6.
 };
 
 /* canvas/context setup */
@@ -95,16 +107,18 @@ let genItems num callback => {
   }) emptyArray;
 };
 
-state.points = genItems 5000 (fun _ => {
+state.points = genItems 100 (fun _ => {
   {
     pos: {
       x: Random.float 1.,
       y: Random.float 1.
     },
     vel: {
-      x: 0.,
-      y: 0.
-    }
+      x: Random.float 1. -. 0.5,
+      y: Random.float 1. -. 0.5
+    },
+    size: Random.float (consts.maxSize -. consts.minSize) +. consts.minSize,
+    locked: false
   };
 });
 
@@ -116,20 +130,17 @@ let draw state => {
   let width = float_of_int state.window.width;
   let height = float_of_int state.window.height;
 
-  Canvas.fillStyle ctx "rgba(255, 255, 255, 0.001)";
-  Canvas.fillRect ctx 0. 0. width height;
+  Canvas.clearRect ctx 0. 0. width height;
 
-  let r = 1.;
+  Canvas.fillStyle ctx "rgba(20, 120, 200, 200.0)";
 
-  Canvas.fillStyle ctx "rgba(20, 120, 200, 0.20)";
-
-  Array.iter (fun point => {
+  Array.iter (fun (point: pointT) => {
     Canvas.beginPath ctx;
 
     let x = point.pos.x *. width;
     let y = point.pos.y *. height;
 
-    drawCircle (ctx, x, y, r);
+    drawCircle (ctx, x, y, point.size);
 
     Canvas.fill ctx;
   }) state.points;
@@ -140,16 +151,23 @@ let angleToVec angle :vecT => {
   y: (cos (angle *. 2. *. Math.pi))
 };
 
-let modPos = 3.0;
-let modIdx = 0.2;
-let modVel = 0.2;
-let modDir = 0.2;
+let modPos = 6.0;
+let modIdx = 0.02;
+let modVel = 0.95;
+let modDir = 0.02;
+let modSpeed = 0.01;
 
 let update _ state => {
-  state.points = Array.mapi (fun i point => {
+  for idx in 0 to (Array.length state.points - 1) {
+    let point = Array.get state.points idx;
+
+    /* if point.locked { */
+    /*   print_endline "locked"; */
+    /* }; */
+
     let nx = point.pos.x *. modPos;
     let ny = point.pos.y *. modPos;
-    let nz = ((float_of_int i) /. (float_of_int (Array.length state.points))) *. modIdx;
+    let nz = ((float_of_int idx) /. (float_of_int (Array.length state.points))) *. modIdx;
 
     let noise = noise3D simplex nx ny nz;
     let direction = angleToVec noise;
@@ -160,11 +178,9 @@ let update _ state => {
     point.vel.x = point.vel.x *. modVel;
     point.vel.y = point.vel.y *. modVel;
 
-    point.pos.x = point.pos.x +. point.vel.x;
-    point.pos.y = point.pos.y +. point.vel.y;
-
-    point;
-  }) state.points;
+    point.pos.x = point.pos.x +. point.vel.x *. modSpeed *. (1. -. point.size /. consts.maxSize);
+    point.pos.y = point.pos.y +. point.vel.y *. modSpeed *. (1. -. point.size /. consts.maxSize);
+  };
 };
 
 let rec loop () => {

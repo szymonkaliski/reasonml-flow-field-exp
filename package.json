@@ -2,8 +2,8 @@
   "scripts": {
     "build": "bsb",
     "watch": "bsb -w",
-    "serve": "budo ./lib/js/src/app.js --port 3000 --host 0.0.0.0 --live --css public/style.css --title vedon",
-    "start": "concurrently 'npm run watch' 'npm run serve'"
+    "serve": "budo ./lib/js/src/app.js --port 3000 --host 0.0.0.0 --live --css public/style.css --title vedon --no-stream",
+    "start": "concurrently --raw 'npm run watch' 'npm run serve'"
   },
   "devDependencies": {
     "bs-platform": "^1.7.3",
