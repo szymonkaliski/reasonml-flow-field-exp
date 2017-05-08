@@ -7,6 +7,12 @@ let simplex = newSimplex ();
 
 let module Math = {
   let pi = [%bs.raw "Math.PI"];
+
+  external sqrt : float => float = "Math.sqrt" [@@bs.val];
+};
+
+let module Date = {
+  external now : unit => float = "Date.now" [@@bs.val];
 };
 
 /* main app state */
@@ -25,7 +31,7 @@ type pointT = {
   pos: vecT,
   vel: vecT,
   size: float,
-  locked: bool,
+  mutable locked: bool,
 };
 
 type stateT = {
@@ -47,8 +53,8 @@ type constsT = {
 };
 
 let consts: constsT = {
-  minSize: 2.,
-  maxSize: 6.
+  minSize: 0.002,
+  maxSize: 0.006
 };
 
 /* canvas/context setup */
@@ -75,13 +81,15 @@ Document.addEventListener Document.window "DOMContentLoaded" setCanvasSize;
 type eventsT = {
   mutable mouseX: int,
   mutable mouseY: int,
-  mutable mouseDown: bool
+  mutable mouseDown: bool,
+  mutable time: float
 };
 
 let events : eventsT = {
   mouseX: 0,
   mouseY: 0,
-  mouseDown: false
+  mouseDown: false,
+  time: 0.
 };
 
 Document.addEventListener canvas "mousemove" (fun e => {
@@ -102,12 +110,12 @@ Document.addEventListener canvas "mouseup" (fun _ => {
 let genItems num callback => {
   let emptyArray = Array.make num 0;
 
-  Array.map (fun i => {
+  Array.mapi (fun i _ => {
     callback i;
   }) emptyArray;
 };
 
-state.points = genItems 100 (fun _ => {
+let genPoint locked => {
   {
     pos: {
       x: Random.float 1.,
@@ -118,9 +126,13 @@ state.points = genItems 100 (fun _ => {
       y: Random.float 1. -. 0.5
     },
     size: Random.float (consts.maxSize -. consts.minSize) +. consts.minSize,
-    locked: false
+    locked: locked
   };
-});
+};
+
+let particleCount = 2000;
+let randomIdx = Random.int particleCount;
+state.points = genItems particleCount (fun i => genPoint (i == randomIdx));
 
 let drawCircle (ctx, x, y, r) => {
   Canvas.arc ctx x y r 0. (2. *. Math.pi) false;
@@ -132,15 +144,19 @@ let draw state => {
 
   Canvas.clearRect ctx 0. 0. width height;
 
-  Canvas.fillStyle ctx "rgba(20, 120, 200, 200.0)";
-
   Array.iter (fun (point: pointT) => {
+    let color = point.locked
+      ? "rgba(120, 200, 110, 0.8)"
+      : "rgba(20, 120, 200, 0.1)";
+
+    Canvas.fillStyle ctx color;
+
     Canvas.beginPath ctx;
 
     let x = point.pos.x *. width;
     let y = point.pos.y *. height;
 
-    drawCircle (ctx, x, y, point.size);
+    drawCircle (ctx, x, y, point.size *. width);
 
     Canvas.fill ctx;
   }) state.points;
@@ -151,39 +167,80 @@ let angleToVec angle :vecT => {
   y: (cos (angle *. 2. *. Math.pi))
 };
 
-let modPos = 6.0;
-let modIdx = 0.02;
-let modVel = 0.95;
-let modDir = 0.02;
-let modSpeed = 0.01;
+let modPos = 1.0;
+let modTime = 0.005;
+let modVel = 0.99;
+let modDir = 0.05;
+let modSpeed = 0.02;
 
-let update _ state => {
+let dist a b => {
+  let x = a.x -. b.x;
+  let y = a.y -. b.y;
+
+  Math.sqrt((x *. x) +. (y *. y));
+};
+
+type breakT = { mutable hit: bool };
+let checkHit point pointIdx points => {
+  let break: breakT = { hit: false };
+
+  for idx in 0 to (Array.length points - 1) {
+    let otherPoint = Array.get points idx;
+
+    if (not break.hit && (pointIdx != idx) && otherPoint.locked) {
+      let d = dist point.pos otherPoint.pos;
+
+      if (d < point.size +. otherPoint.size) {
+        break.hit = true;
+      };
+    }
+  };
+
+  break.hit;
+};
+
+let update events state => {
   for idx in 0 to (Array.length state.points - 1) {
     let point = Array.get state.points idx;
 
-    /* if point.locked { */
-    /*   print_endline "locked"; */
-    /* }; */
+    if (not point.locked) {
+      point.locked = checkHit point idx state.points;
 
-    let nx = point.pos.x *. modPos;
-    let ny = point.pos.y *. modPos;
-    let nz = ((float_of_int idx) /. (float_of_int (Array.length state.points))) *. modIdx;
+      let nx = point.pos.x *. modPos;
+      let ny = point.pos.y *. modPos;
+      let nz = events.time *. modTime;
 
-    let noise = noise3D simplex nx ny nz;
-    let direction = angleToVec noise;
+      let noise = noise3D simplex nx ny nz;
+      let direction = angleToVec noise;
 
-    point.vel.x = point.vel.x +. direction.x *. modDir;
-    point.vel.y = point.vel.y +. direction.y *. modDir;
+      point.vel.x = point.vel.x +. direction.x *. modDir;
+      point.vel.y = point.vel.y +. direction.y *. modDir;
 
-    point.vel.x = point.vel.x *. modVel;
-    point.vel.y = point.vel.y *. modVel;
+      point.vel.x = point.vel.x *. modVel;
+      point.vel.y = point.vel.y *. modVel;
 
-    point.pos.x = point.pos.x +. point.vel.x *. modSpeed *. (1. -. point.size /. consts.maxSize);
-    point.pos.y = point.pos.y +. point.vel.y *. modSpeed *. (1. -. point.size /. consts.maxSize);
+      point.pos.x = point.pos.x +. point.vel.x *. modSpeed *. (1. -. point.size /. consts.maxSize);
+      point.pos.y = point.pos.y +. point.vel.y *. modSpeed *. (1. -. point.size /. consts.maxSize);
+
+      if (point.pos.x > 1.0) { point.pos.x = 0.0; };
+      if (point.pos.y > 1.0) { point.pos.y = 0.0; };
+      if (point.pos.x < 0.0) { point.pos.x = 1.0; };
+      if (point.pos.y < 0.0) { point.pos.y = 1.0; };
+    };
   };
+
+  /* if (Random.float 1.0 < 0.001) { */
+  /*   let newPoints = genItems 10 (fun _ => genPoint false); */
+  /*   state.points = Array.append state.points newPoints; */
+  /* }; */
 };
 
+let start = Date.now ();
+
 let rec loop () => {
+  let now = Date.now ();
+  events.time = now -. start;
+
   update events state;
   draw state;
 
