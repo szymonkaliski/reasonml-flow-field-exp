@@ -110,9 +110,7 @@ Document.addEventListener canvas "mouseup" (fun _ => {
 let genItems num callback => {
   let emptyArray = Array.make num 0;
 
-  Array.mapi (fun i _ => {
-    callback i;
-  }) emptyArray;
+  Array.mapi (fun i _ => callback i) emptyArray;
 };
 
 let genPoint locked => {
@@ -130,7 +128,7 @@ let genPoint locked => {
   };
 };
 
-let particleCount = 2000;
+let particleCount = 3000;
 let randomIdx = Random.int particleCount;
 state.points = genItems particleCount (fun i => genPoint (i == randomIdx));
 
@@ -141,24 +139,27 @@ let drawCircle (ctx, x, y, r) => {
 let draw state => {
   let width = float_of_int state.window.width;
   let height = float_of_int state.window.height;
+  let size = min width height;
 
   Canvas.clearRect ctx 0. 0. width height;
 
   Array.iter (fun (point: pointT) => {
-    let color = point.locked
-      ? "rgba(120, 200, 110, 0.8)"
-      : "rgba(20, 120, 200, 0.1)";
+    if (point.locked) {
+      let color = point.locked
+        ? "rgba(120, 200, 110, 0.8)"
+        : "rgba(20, 120, 200, 0.1)";
 
-    Canvas.fillStyle ctx color;
+      Canvas.fillStyle ctx color;
 
-    Canvas.beginPath ctx;
+      Canvas.beginPath ctx;
 
-    let x = point.pos.x *. width;
-    let y = point.pos.y *. height;
+      let x = point.pos.x *. width;
+      let y = point.pos.y *. height;
 
-    drawCircle (ctx, x, y, point.size *. width);
+      drawCircle (ctx, x, y, point.size *. size);
 
-    Canvas.fill ctx;
+      Canvas.fill ctx;
+    };
   }) state.points;
 };
 
@@ -180,31 +181,26 @@ let dist a b => {
   Math.sqrt((x *. x) +. (y *. y));
 };
 
-type breakT = { mutable hit: bool };
-let checkHit point pointIdx points => {
-  let break: breakT = { hit: false };
+let checkHit point lockedPoints => {
+  let idx = Js.Array.findIndex (fun lockedPoint => {
+    let d = dist point.pos lockedPoint.pos;
 
-  for idx in 0 to (Array.length points - 1) {
-    let otherPoint = Array.get points idx;
+    d < point.size +. lockedPoint.size;
+  }) lockedPoints;
 
-    if (not break.hit && (pointIdx != idx) && otherPoint.locked) {
-      let d = dist point.pos otherPoint.pos;
-
-      if (d < point.size +. otherPoint.size) {
-        break.hit = true;
-      };
-    }
-  };
-
-  break.hit;
+  idx >= 0;
 };
 
 let update events state => {
+  let lockedPoints = Js.Array.filter (fun point => point.locked) state.points;
+
   for idx in 0 to (Array.length state.points - 1) {
     let point = Array.get state.points idx;
 
     if (not point.locked) {
-      point.locked = checkHit point idx state.points;
+      if (checkHit point lockedPoints) {
+        point.locked = true;
+      };
 
       let nx = point.pos.x *. modPos;
       let ny = point.pos.y *. modPos;
@@ -229,10 +225,10 @@ let update events state => {
     };
   };
 
-  /* if (Random.float 1.0 < 0.001) { */
-  /*   let newPoints = genItems 10 (fun _ => genPoint false); */
-  /*   state.points = Array.append state.points newPoints; */
-  /* }; */
+  if (Random.float 1.0 < 0.01) {
+    let newPoints = genItems 100 (fun _ => genPoint false);
+    state.points = Array.append state.points newPoints;
+  };
 };
 
 let start = Date.now ();
