@@ -11,3 +11,8 @@ external stroke : context => unit = "stroke" [@@bs.send];
 external fillRect : context => float => float => float => float => unit = "fillRect" [@@bs.send];
 external clearRect : context => float => float => float => float => unit = "clearRect" [@@bs.send];
 external arc : context => float => float => float => float => float => bool => unit = "arc" [@@bs.send];
+
+type imageData;
+
+external newImageData : TypedArray.uint8ClampedArray => int => int => imageData = "ImageData" [@@bs.new];
+external putImageData : context => imageData => int => int => unit = "putImageData" [@@bs.send];

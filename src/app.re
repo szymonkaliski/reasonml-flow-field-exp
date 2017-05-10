@@ -143,24 +143,30 @@ let draw state => {
 
   Canvas.clearRect ctx 0. 0. width height;
 
-  Array.iter (fun (point: pointT) => {
-    if (point.locked) {
-      let color = point.locked
-        ? "rgba(120, 200, 110, 0.8)"
-        : "rgba(20, 120, 200, 0.1)";
+  let typedData = TypedArray.makeUint8ClampedArray [| 255, 0, 0, 255 |];
 
-      Canvas.fillStyle ctx color;
+  let imageData = Canvas.newImageData typedData 1 1;
 
-      Canvas.beginPath ctx;
+  Canvas.putImageData ctx imageData 1 1;
 
-      let x = point.pos.x *. width;
-      let y = point.pos.y *. height;
+  /* Array.iter (fun (point: pointT) => { */
+  /*   if (point.locked) { */
+  /*     let color = point.locked */
+  /*       ? "rgba(120, 200, 110, 0.8)" */
+  /*       : "rgba(20, 120, 200, 0.1)"; */
 
-      drawCircle (ctx, x, y, point.size *. size);
+  /*     Canvas.fillStyle ctx color; */
 
-      Canvas.fill ctx;
-    };
-  }) state.points;
+  /*     Canvas.beginPath ctx; */
+
+  /*     let x = point.pos.x *. width; */
+  /*     let y = point.pos.y *. height; */
+
+  /*     drawCircle (ctx, x, y, point.size *. size); */
+
+  /*     Canvas.fill ctx; */
+  /*   }; */
+  /* }) state.points; */
 };
 
 let angleToVec angle :vecT => {
