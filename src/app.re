@@ -63,9 +63,12 @@ let ctx = Canvas.getContext canvas "2d";
 
 Document.appendChild canvas;
 
+let maxWidth = 400;
+let maxHeight = 400;
+
 let setCanvasSize _ => {
-  let width = (Document.getWidth Document.window);
-  let height = (Document.getHeight Document.window);
+  let width = min (Document.getWidth Document.window) maxWidth;
+  let height = min (Document.getHeight Document.window) maxHeight;
 
   Document.setWidth canvas width;
   Document.setHeight canvas height;
@@ -128,7 +131,7 @@ let genPoint locked => {
   };
 };
 
-let particleCount = 3000;
+let particleCount = 10;
 let randomIdx = Random.int particleCount;
 state.points = genItems particleCount (fun i => genPoint (i == randomIdx));
 
@@ -136,18 +139,69 @@ let drawCircle (ctx, x, y, r) => {
   Canvas.arc ctx x y r 0. (2. *. Math.pi) false;
 };
 
+let dist a b => {
+  let x = a.x -. b.x;
+  let y = a.y -. b.y;
+
+  Math.sqrt((x *. x) +. (y *. y));
+};
+
+type pixelsDataT = {
+  mutable idx: int,
+  mutable pixels: array int,
+  mutable tmpColor: int
+};
+
+let data: pixelsDataT = {
+  idx: 0,
+  pixels: [| |],
+  tmpColor: 0
+};
+
 let draw state => {
-  let width = float_of_int state.window.width;
-  let height = float_of_int state.window.height;
-  let size = min width height;
+  /* Canvas.clearRect ctx 0. 0. width height; */
 
-  Canvas.clearRect ctx 0. 0. width height;
+  let pixelsCount = state.window.width * state.window.height;
 
-  let typedData = TypedArray.makeUint8ClampedArray [| 255, 0, 0, 255 |];
+  if (Array.length data.pixels != pixelsCount * 4) {
+    data.pixels = Array.make (pixelsCount * 4) 0;
+  };
 
-  let imageData = Canvas.newImageData typedData 1 1;
+  data.idx = 0;
 
-  Canvas.putImageData ctx imageData 1 1;
+  while (data.idx < pixelsCount * 4) {
+    data.tmpColor = 0;
+
+    for idx in 0 to (Array.length state.points - 1) {
+      let point = Array.unsafe_get state.points idx;
+
+      let y = float_of_int (data.idx / (state.window.width * 1));
+      let x = float_of_int (data.idx mod (state.window.width * 4));
+
+      let px = point.pos.x *. float_of_int state.window.width;
+      let py = point.pos.y *. float_of_int state.window.width;
+
+      let d = dist { x: x, y: y } { x: px, y: py };
+      let color = point.size /. d;
+
+      data.tmpColor = data.tmpColor + int_of_float (color *. 600000.);
+    };
+
+    Array.unsafe_set data.pixels (data.idx + 0) data.tmpColor;
+    Array.unsafe_set data.pixels (data.idx + 1) data.tmpColor;
+    Array.unsafe_set data.pixels (data.idx + 2) data.tmpColor;
+    Array.unsafe_set data.pixels (data.idx + 3) 255;
+
+    data.idx = data.idx + 4;
+  };
+
+  let typedData = TypedArray.makeUint8ClampedArray data.pixels;
+
+  let imageData = Canvas.newImageData typedData state.window.width state.window.height;
+
+  Canvas.putImageData ctx imageData 0 0;
+
+
 
   /* Array.iter (fun (point: pointT) => { */
   /*   if (point.locked) { */
@@ -178,14 +232,7 @@ let modPos = 1.0;
 let modTime = 0.005;
 let modVel = 0.99;
 let modDir = 0.05;
-let modSpeed = 0.02;
-
-let dist a b => {
-  let x = a.x -. b.x;
-  let y = a.y -. b.y;
-
-  Math.sqrt((x *. x) +. (y *. y));
-};
+let modSpeed = 0.2;
 
 let checkHit point lockedPoints => {
   let idx = Js.Array.findIndex (fun lockedPoint => {
@@ -198,15 +245,15 @@ let checkHit point lockedPoints => {
 };
 
 let update events state => {
-  let lockedPoints = Js.Array.filter (fun point => point.locked) state.points;
+  /* let lockedPoints = Js.Array.filter (fun point => point.locked) state.points; */
 
   for idx in 0 to (Array.length state.points - 1) {
-    let point = Array.get state.points idx;
+    let point = Array.unsafe_get state.points idx;
 
     if (not point.locked) {
-      if (checkHit point lockedPoints) {
-        point.locked = true;
-      };
+      /* if (checkHit point lockedPoints) { */
+      /*   point.locked = true; */
+      /* }; */
 
       let nx = point.pos.x *. modPos;
       let ny = point.pos.y *. modPos;
@@ -231,10 +278,10 @@ let update events state => {
     };
   };
 
-  if (Random.float 1.0 < 0.01) {
-    let newPoints = genItems 100 (fun _ => genPoint false);
-    state.points = Array.append state.points newPoints;
-  };
+  /* if (Random.float 1.0 < 0.01) { */
+  /*   let newPoints = genItems 100 (fun _ => genPoint false); */
+  /*   state.points = Array.append state.points newPoints; */
+  /* }; */
 };
 
 let start = Date.now ();
