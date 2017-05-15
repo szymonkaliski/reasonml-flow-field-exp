@@ -1,15 +1,25 @@
 let canvas = Document.createElement "canvas";
-let ctx = Canvas.getContext canvas "3d";
 
 Document.appendChild canvas;
 
-let regl = Regl.makeRegl ctx;
+let setCanvasSize _ => {
+  let width = Document.getWidth Document.window;
+  let height = Document.getHeight Document.window;
+
+  Document.setWidth canvas width;
+  Document.setHeight canvas height;
+};
+
+Document.addEventListener Document.window "resize" setCanvasSize;
+Document.addEventListener Document.window "DOMContentLoaded" setCanvasSize;
+
+let regl = Regl.make canvas;
 
 let triangleAttributes = [%bs.obj {
   position: [|
-    [| -2, -2 |],
-    [| 4, -2 |],
-    [| 4, 4 |]
+    [| -0.75, -0.5 |],
+    [| 0.75, -0.5 |],
+    [| 0., 0.5 |]
   |]
 }];
 
@@ -17,7 +27,7 @@ let drawTriangleConfig = Regl.makeDrawConfig
   frag:: "
     precision mediump float;
     void main() {
-      gl_FragColor = vec4(1., 0., 0., 1.);
+      gl_FragColor = vec4(0.3, 0.8, 0.9, 1.);
     }
   "
   vert:: "
@@ -31,12 +41,8 @@ let drawTriangleConfig = Regl.makeDrawConfig
   uniforms:: ()
   count:: 3;
 
-let drawTriangleComand = regl drawTriangleConfig;
+let drawTriangleComand = Regl.makeDrawCommand regl drawTriangleConfig;
 
-
-let draw () => {
-  /* TODO: uncurry? */
-  [%bs.raw "drawTriangleComand()"];
-};
-
-Regl.frame regl draw;
+Regl.frame regl (fun () => {
+  Regl.drawCommand drawTriangleComand;
+});
