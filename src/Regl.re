@@ -2,37 +2,37 @@
 
 type drawComandT = unit => unit;
 
-let create: Document.element => unit = [%bs.raw {|
+let create : Document.element => unit = [%bs.raw {|
   function(canvas) {
     window.regl = require('regl')(canvas);
   }
 |}];
 
-let makeDrawCommand: Obj.t => drawComandT = [%bs.raw {|
+let makeDrawCommand : Obj.t => drawComandT = [%bs.raw {|
   function(drawCommand) {
     return window.regl(drawCommand);
   }
 |}];
 
-let draw: command::drawComandT => uniforms::Obj.t => unit = [%bs.raw {|
+let draw : command::drawComandT => uniforms::Obj.t => unit = [%bs.raw {|
   function(drawCommand, uniforms) {
     return drawCommand(uniforms);
   }
 |}];
 
-let prop: string => unit = [%bs.raw {|
+let prop : string => unit = [%bs.raw {|
   function(key) {
     return window.regl.prop(key);
   }
 |}];
 
-let frame: (float => unit) => unit = [%bs.raw {|
+let frame : (float => unit) => unit = [%bs.raw {|
   function(fn) {
     window.regl.frame((props) => fn(props.time));
   }
 |}];
 
-let clear: color::array int => depth::int => unit = [%bs.raw {|
+let clear : color::array int => depth::int => unit = [%bs.raw {|
   function(color, depth) {
     window.regl.clear({
       color: color,
@@ -43,7 +43,7 @@ let clear: color::array int => depth::int => unit = [%bs.raw {|
 
 /* because we can't have nice things */
 
-let unrollUniformForProp: string => int => unit = [%bs.raw {|
+let unrollUniformForProp : string => int => unit = [%bs.raw {|
   function(key, num) {
     var uniform = {};
 
@@ -53,5 +53,4 @@ let unrollUniformForProp: string => int => unit = [%bs.raw {|
 
     return uniform;
   }
-
 |}]

@@ -11,5 +11,3 @@ external getHeight : element => int = "innerHeight" [@@bs.get];
 
 external setWidth : element => int => unit = "width" [@@bs.set];
 external setHeight : element => int => unit = "height" [@@bs.set];
-
-external requestAnimationFrame : (unit => unit) => unit = "requestAnimationFrame" [@@bs.val];
