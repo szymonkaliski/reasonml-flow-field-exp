@@ -1,3 +1,19 @@
+/* settings */
+
+let numPoints = 200;
+
+let modPos = 20.;
+let modTime = 0.9;
+let modVel = 0.25;
+let modDir = 0.2;
+let modSpeed = 1.00;
+let modLockDie = 0.01;
+let modDist = 100.;
+let modLockGrow = 0.02;
+let stickChance = 0.09;
+
+let warmupCount = 120;
+
 /* main app state */
 
 type windowT = {
@@ -11,21 +27,21 @@ type vecT = {
 };
 
 type pointT = {
-  pos: vecT,
-  vel: vecT,
-  mutable size: float,
-  mutable life: float,
-  mutable lockedSize: float,
-  mutable locked: bool,
+  pos : vecT,
+  vel : vecT,
+  mutable size : float,
+  mutable life : float,
+  mutable lockedSize : float,
+  mutable locked : bool,
 };
 
 type stateT = {
-  mutable points: array pointT,
-  window: windowT,
+  mutable points : array pointT,
+  window : windowT,
 };
 
 let state : stateT = {
-  points: [| |],
+  points: [||],
   window: {
     width: 0,
     height: 0
@@ -58,87 +74,78 @@ Regl.create canvas;
 
 let simplex = Simplex.newSimplex ();
 
-let numPoints = 250;
+let vert = "
+  attribute vec2 position;
 
-let modPos = 20.;
-let modTime = 0.9;
-let modVel = 0.25;
-let modDir = 0.2;
-let modSpeed = 1.00;
-let modDie = 0.03;
-let modDist = 200.;
-let stickChance = 0.09;
+  void main() {
+    gl_Position = vec4(position, 0., 1.);
+  }
+";
 
-let warmupCount = 120;
+let frag = "
+  precision mediump float;
 
-let drawMetaballsComand = Regl.makeDrawCommand (Obj.magic [%bs.obj {
-  vert: "
-    attribute vec2 position;
+  uniform float width, height;
+  uniform vec3 metaballs[" ^ (string_of_int numPoints) ^ "];
 
-    void main() {
-      gl_Position = vec4(position, 0., 1.);
-    }
-  ",
-  frag: "
-    precision mediump float;
+  void main() {
+    float x = gl_FragCoord.x;
+    float y = gl_FragCoord.y;
 
-    uniform float width, height;
-    uniform vec3 metaballs[" ^ (string_of_int numPoints) ^ "];
+    vec3 color = vec3(44., 39., 79.) / vec3(255.);
+    vec3 background = vec3(227., 224., 218.) / vec3(255.);
 
-    void main() {
-      float x = gl_FragCoord.x;
-      float y = gl_FragCoord.y;
+    float v = 0.0;
 
-      vec3 color = vec3(44., 39., 79.) / vec3(255.);
-      vec3 background = vec3(227., 224., 218.) / vec3(255.);
+    for (int i = 0; i < " ^ (string_of_int numPoints) ^ "; i++) {
+      vec3 metaball = metaballs[i];
+      float r = metaball.z;
 
-      float v = 0.0;
+      if (r > 0.0) {
+        float dx = (metaball.x * width)  - x;
+        float dy = (metaball.y * height) - y;
 
-      for (int i = 0; i < " ^ (string_of_int numPoints) ^ "; i++) {
-        vec3 metaball = metaballs[i];
-        float r = metaball.z;
-
-        if (r > 0.0) {
-          float dx = (metaball.x * width)  - x;
-          float dy = (metaball.y * height) - y;
-
-          v += ((r * r) / (dx * dx + dy * dy)) * 9.;
-        }
-      }
-
-      float min = 0.8;
-      float max = 1.2;
-
-      if (v > min && v < max) {
-        float scaled = (v - min) / (max - min);
-        float lerpValue = 1. - sin(scaled * 3.1415);
-
-        vec3 outColor = mix(color, background, lerpValue);
-
-        gl_FragColor = vec4(outColor, 1.0);
-      } else {
-        gl_FragColor = vec4(background, 1.0);
+        v += ((r * r) / (dx * dx + dy * dy)) * 9.;
       }
     }
-  ",
-  uniforms: Js.Obj.assign
-    (Obj.magic (Regl.unrollUniformForProp "metaballs" numPoints))
-    [%bs.obj {
-      width: Regl.prop "width",
-      height: Regl.prop "height"
-    }],
-  count: 6,
-  attributes: {
-    position: [|
-      [| -1., -1. |],
-      [| 1., 1. |],
-      [| -1., 1. |],
-      [| 1., 1. |],
-      [| 1., -1. |],
-      [| -1., -1. |]
-    |]
+
+    float min = 0.8;
+    float max = 1.2;
+
+    if (v > min && v < max) {
+      float scaled = (v - min) / (max - min);
+      float lerpValue = 1. - sin(scaled * 3.1415);
+
+      vec3 outColor = mix(color, background, lerpValue);
+
+      gl_FragColor = vec4(outColor, 1.0);
+    } else {
+      gl_FragColor = vec4(background, 1.0);
     }
-}]);
+  }
+";
+
+let uniforms = Js.Obj.assign
+  (Regl.unrollUniformForProp "metaballs" numPoints)
+  [%bs.obj {
+    width: Regl.prop "width",
+    height: Regl.prop "height"
+  }];
+
+let attributes = [%bs.obj {
+  position: [|
+    [| -1., -1. |],
+    [| 1., 1. |],
+    [| -1., 1. |],
+    [| 1., 1. |],
+    [| 1., -1. |],
+    [| -1., -1. |]
+  |]
+}];
+
+let drawMetaballConfig = Regl.makeDrawConfig ::vert ::frag ::uniforms ::attributes count::6;
+
+let drawMetaballsComand = Regl.makeDrawCommand drawMetaballConfig;
 
 let genItems num callback => {
   let emptyArray = Array.make num 0;
@@ -163,7 +170,7 @@ let genPoint locked => {
   };
 };
 
-state.points = genItems numPoints (fun _ => genPoint ((Random.float 1.0) > 0.99));
+state.points = genItems numPoints (fun _ => genPoint false);
 
 let metaballsFromPoints points => {
   Array.map (fun point => {
@@ -200,6 +207,7 @@ let checkHit point lockedPoints => {
 let update t => {
   let lockedPoints = Js.Array.filter (fun point => point.locked) state.points;
 
+  /* if there are now locked points, randomly select one */
   if ((Array.length lockedPoints) == 0) {
     let randomIdx = Random.int (Array.length state.points);
     let randomPoint = Array.unsafe_get state.points randomIdx;
@@ -210,10 +218,10 @@ let update t => {
     let point = Array.unsafe_get state.points idx;
 
     if (point.locked) {
-      point.lockedSize = min (point.lockedSize +. 0.01) point.size;
+      point.lockedSize = min (point.lockedSize +. modLockGrow) point.size;
 
       if (point.lockedSize >= 0.99) {
-        point.life = point.life -. modDie;
+        point.life = point.life -. modLockDie;
 
         if (point.life < 0.0) {
           Array.unsafe_set state.points idx (genPoint false);
@@ -258,7 +266,7 @@ let draw t => {
     color::[| 0, 0, 0, 1 |]
     depth::1;
 
-  let metaballsUniforms = Obj.magic [%bs.obj {
+  let metaballsUniforms = [%bs.obj {
     metaballs: metaballsFromPoints state.points,
     width: state.window.width,
     height: state.window.height,
@@ -272,8 +280,8 @@ let draw t => {
 /* warmup */
 for idx in 0 to warmupCount {
   let t = (float_of_int idx) /. (float_of_int warmupCount);
-
   update t;
 };
 
+/* start drawing after warmup */
 Regl.frame draw;
