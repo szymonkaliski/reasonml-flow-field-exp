@@ -13,7 +13,8 @@ type vecT = {
 type pointT = {
   pos: vecT,
   vel: vecT,
-  size: float,
+  mutable size: float,
+  mutable life: float,
   mutable lockedSize: float,
   mutable locked: bool,
 };
@@ -53,11 +54,22 @@ Document.addEventListener Document.window "DOMContentLoaded" setCanvasSize;
 
 Regl.create canvas;
 
-/* */
+/* app */
 
 let simplex = Simplex.newSimplex ();
 
-let numPoints = 400;
+let numPoints = 250;
+
+let modPos = 20.;
+let modTime = 0.9;
+let modVel = 0.25;
+let modDir = 0.2;
+let modSpeed = 1.00;
+let modDie = 0.03;
+let modDist = 200.;
+let stickChance = 0.09;
+
+let warmupCount = 120;
 
 let drawMetaballsComand = Regl.makeDrawCommand (Obj.magic [%bs.obj {
   vert: "
@@ -77,6 +89,9 @@ let drawMetaballsComand = Regl.makeDrawCommand (Obj.magic [%bs.obj {
       float x = gl_FragCoord.x;
       float y = gl_FragCoord.y;
 
+      vec3 color = vec3(44., 39., 79.) / vec3(255.);
+      vec3 background = vec3(227., 224., 218.) / vec3(255.);
+
       float v = 0.0;
 
       for (int i = 0; i < " ^ (string_of_int numPoints) ^ "; i++) {
@@ -84,23 +99,25 @@ let drawMetaballsComand = Regl.makeDrawCommand (Obj.magic [%bs.obj {
         float r = metaball.z;
 
         if (r > 0.0) {
-          float dx = (metaball.x * width) - x;
+          float dx = (metaball.x * width)  - x;
           float dy = (metaball.y * height) - y;
 
-          v += pow(r, 3.) / (dx * dx + dy * dy) * 10.;
+          v += ((r * r) / (dx * dx + dy * dy)) * 9.;
         }
       }
 
-      float min = 1.0;
-      float max = 1.4;
-      float grey = 0.78;
+      float min = 0.8;
+      float max = 1.2;
 
       if (v > min && v < max) {
-        float c = (v - min) / (max - min);
+        float scaled = (v - min) / (max - min);
+        float lerpValue = 1. - sin(scaled * 3.1415);
 
-        gl_FragColor = vec4(clamp(vec3(1. - sin(c * 3.1415)), 0.0, grey), 1.0);
+        vec3 outColor = mix(color, background, lerpValue);
+
+        gl_FragColor = vec4(outColor, 1.0);
       } else {
-        gl_FragColor = vec4(vec3(grey), 1.0);
+        gl_FragColor = vec4(background, 1.0);
       }
     }
   ",
@@ -140,6 +157,7 @@ let genPoint locked => {
       y: Random.float 1. -. 0.5
     },
     size: Random.float 2. +. 1.,
+    life: 10.,
     lockedSize: 0.,
     locked: locked
   };
@@ -152,7 +170,7 @@ let metaballsFromPoints points => {
     [|
       point.pos.x,
       point.pos.y,
-      point.lockedSize,
+      point.lockedSize *. min 1.0 point.life,
     |]
   }) points;
 };
@@ -173,32 +191,36 @@ let checkHit point lockedPoints => {
   let idx = Js.Array.findIndex (fun lockedPoint => {
     let d = dist point.pos lockedPoint.pos;
 
-    (d < (point.size +. lockedPoint.size) /. 100.) && (d > 0.01);
+    (d < (point.size +. lockedPoint.size) /. modDist);
   }) lockedPoints;
 
   idx >= 0;
 };
 
-let modPos = 1.0;
-let modTime = 0.05;
-let modVel = 0.4;
-let modDir = 0.01;
-let modSpeed = 1.00;
-
 let update t => {
   let lockedPoints = Js.Array.filter (fun point => point.locked) state.points;
+
+  if ((Array.length lockedPoints) == 0) {
+    let randomIdx = Random.int (Array.length state.points);
+    let randomPoint = Array.unsafe_get state.points randomIdx;
+    randomPoint.locked = true;
+  };
 
   for idx in 0 to (Array.length state.points - 1) {
     let point = Array.unsafe_get state.points idx;
 
     if (point.locked) {
       point.lockedSize = min (point.lockedSize +. 0.01) point.size;
+
+      if (point.lockedSize >= 0.99) {
+        point.life = point.life -. modDie;
+
+        if (point.life < 0.0) {
+          Array.unsafe_set state.points idx (genPoint false);
+        }
+      }
     }
     else {
-      if (checkHit point lockedPoints) {
-        point.locked = true;
-      };
-
       let nx = point.pos.x *. modPos;
       let ny = point.pos.y *. modPos;
       let nz = t *. modTime;
@@ -219,6 +241,12 @@ let update t => {
       if (point.pos.y > 1.0) { point.pos.y = 0.0; };
       if (point.pos.x < 0.0) { point.pos.x = 1.0; };
       if (point.pos.y < 0.0) { point.pos.y = 1.0; };
+
+      if (checkHit point lockedPoints) {
+        if (Random.float 1.0 < stickChance) {
+          point.locked = true;
+        }
+      };
     };
   };
 };
@@ -239,6 +267,13 @@ let draw t => {
   Regl.draw
     command::drawMetaballsComand
     uniforms::metaballsUniforms;
+};
+
+/* warmup */
+for idx in 0 to warmupCount {
+  let t = (float_of_int idx) /. (float_of_int warmupCount);
+
+  update t;
 };
 
 Regl.frame draw;
