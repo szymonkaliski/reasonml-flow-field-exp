@@ -2,13 +2,16 @@
   "scripts": {
     "build": "bsb",
     "watch": "bsb -w",
-    "serve": "budo ./lib/js/src/app.js --port 3000 --host 0.0.0.0 --live --css public/style.css --title vedon",
-    "start": "concurrently 'npm run watch' 'npm run serve'"
+    "serve": "budo ./lib/js/src/app.js --port 3000 --host 0.0.0.0 --live --css dist/style.css --title vedon",
+    "start": "concurrently 'npm run watch' 'npm run serve'",
+    "deploy": "npm run build && browserify lib/js/src/app.js > dist/app.js && gh-pages -d dist/"
   },
   "devDependencies": {
+    "browserify": "^14.4.0",
     "bs-platform": "^1.7.3",
     "budo": "^10.0.3",
-    "concurrently": "^3.4.0"
+    "concurrently": "^3.4.0",
+    "gh-pages": "^1.0.0"
   },
   "dependencies": {
     "simplex-noise": "^2.3.0"
